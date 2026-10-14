@@ -124,12 +124,21 @@ If you reconsider and will want to enable unlocking of a particular volume you c
 
 		if printf '%s' "$PASSPHRASE" | diskutil apfs unlock "$DEVICE" -stdinpassphrase -verify -user "$UUID"; then
 			printf 'Adding password for volume "%s" with UUID %s to the System keychain...\n' "$NAME" "$UUID"
+			# Replace any existing entry instead of updating it in place (-U):
+			# changing the trusted application list of an existing item needs an
+			# interactive confirmation (an administrator prompt on the System
+			# keychain), and that list pins the exact build of the BootUnlock
+			# helper (see build/build.sh), so after an upgrade a stale entry
+			# would be unreadable by the new helper.  Delete + add needs no
+			# confirmation.
+			sudo /usr/bin/security delete-generic-password \
+				-a "$UUID" -s "$UUID" \
+				/Library/Keychains/System.keychain ||:
 			if sudo /usr/bin/security add-generic-password \
 				-a "$UUID" -s "$UUID" -l "$NAME" \
 				-D 'Encrypted Volume Password' \
 				-T '' -T "$WORK_DIR/BootUnlock" \
 				-w "$PASSPHRASE" \
-				-U \
 				/Library/Keychains/System.keychain; then
 				break
 			else

@@ -1,3 +1,17 @@
+1.3.4
+-----
+
+- The BootUnlock helper is now ad-hoc signed with codesign's default
+  designated requirement (the binary's own cdhash) instead of an explicit
+  "identifier" requirement.  Previously any ad-hoc signed binary claiming the
+  identifier au.com.openwall.BootUnlock satisfied the System keychain ACL and
+  could read the volume passphrases; now only the exact installed build can.
+  Because the hash changes with every build, update.sh must be re-run after
+  upgrading the helper (the installer already does this at the end);
+- update.sh now replaces an existing keychain entry instead of updating it in
+  place with "-U", since changing the trusted application list of an existing
+  item requires an interactive confirmation.
+
 1.3.3
 -----
 

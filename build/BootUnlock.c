@@ -10,8 +10,11 @@
  * /usr/bin/security only ships x86_64 and arm64e slices, and non-Apple
  * ad-hoc signatures of the arm64e slice fail the kernel's pointer
  * authentication ABI check, so the x86_64 slice needed Rosetta. Compiling
- * this ourselves for plain arm64 sidesteps that restriction entirely while
- * keeping the same custom-identity trust model.
+ * this ourselves for plain arm64 sidesteps that restriction entirely.
+ *
+ * The binary is ad-hoc signed with codesign's default designated requirement,
+ * i.e. its own cdhash, so the System keychain ACL that files/update.sh sets
+ * up trusts this exact build and nothing else (see build/build.sh).
  */
 
 #include <CoreFoundation/CoreFoundation.h>

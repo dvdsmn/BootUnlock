@@ -15,9 +15,11 @@ LAUNCH_DAEMON_PLIST="/Library/LaunchDaemons/$IDENTIFIER.plist"
 
 # The "$NAME" helper is a small native (arm64/x86_64) program built and
 # ad-hoc signed at package build time (see build/build.sh and
-# build/BootUnlock.c) that talks to the keychain directly under the
-# "$IDENTIFIER" identity trusted by the System keychain ACL (files/update.sh).
-# All that's left to do here is lock down its ownership and permissions.
+# build/BootUnlock.c) that talks to the keychain directly.  The System
+# keychain ACL set up by update.sh (run at the end of this script) trusts the
+# exact build by its cdhash, which is also why update.sh has to run again on
+# every upgrade.  All that's left to do here is lock down its ownership and
+# permissions.
 chown -h root:wheel "$INSTALL_LOCATION/$NAME"
 chmod 0100 "$INSTALL_LOCATION/$NAME"
 
