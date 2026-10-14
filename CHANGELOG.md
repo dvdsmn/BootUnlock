@@ -10,7 +10,10 @@
   upgrading the helper (the installer already does this at the end);
 - update.sh now replaces an existing keychain entry instead of updating it in
   place with "-U", since changing the trusted application list of an existing
-  item requires an interactive confirmation.
+  item requires an interactive confirmation;
+- Removed the "preinstall" check for the Xcode command-line tools.  Since
+  1.3.3 the helper is compiled when the package is built, so nothing at
+  install time needs them any more (building the package still does).
 
 1.3.3
 -----

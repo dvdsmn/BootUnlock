@@ -8,10 +8,10 @@ scratch.  However, good engineering requires critical thinking and if the proble
 can be addressed using the existing tools, then this is the challenge worth
 puzzling your head with.  The entire package is using bash scripting language only.
 
-To build an macOS package you can either use "make" (if you have Xcode
-installed) or just run "build/build.sh" (if you do not want to install Xcode).
-The result will be the same: a package is going to be created in the "out"
-directory.
+To build a macOS package run "make" or "build/build.sh" (the result is the
+same): a package is going to be created in the "out" directory.  Building
+requires the Xcode command-line tools, because the BootUnlock helper is
+compiled with clang; installing the resulting package does not.
 
 Alternatively, if you do not want to build the package yourself, you can grab the
 premade one from the [releases](../../releases) section here.
