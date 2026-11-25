@@ -27,7 +27,9 @@ chmod 0100 "$HELPER"
 prepare_log
 prepare_state
 exec >> "$LOG_FILE" 2>&1
-log "installing"
+# x86_64 on an Apple Silicon Mac means the installer ran this script under
+# Rosetta 2, i.e. the package did not declare arm64 (build/Distribution.xml).
+log "installing, running as $(uname -m)"
 
 TMP_DIR=$(mktemp -d -t BootUnlock)
 trap 'rm -rf "$TMP_DIR"' EXIT
