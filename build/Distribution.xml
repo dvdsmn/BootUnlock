@@ -1,18 +1,21 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<!--
+    A template: build/build.sh fills in @VERSION@, @HOST_ARCHS@ and @MIN_OS@.
+ -->
 <installer-gui-script minSpecVersion="2">
     <title>BootUnlock</title>
-    <product id="au.com.openwall.BootUnlock" version="1.3.4" />
+    <product id="au.com.openwall.BootUnlock" version="@VERSION@" />
     <background file="background.png" scaling="proportional" alignment="bottomleft"/>
     <welcome file="welcome.rtf"/>
     <readme file="readme.rtf"/>
     <license file="license.rtf"/>
     <conclusion file="installed.rtf"/>
-    <options customize="never" rootVolumeOnly="true" require-scripts="false" />
+    <options customize="never" rootVolumeOnly="true" require-scripts="false" hostArchitectures="@HOST_ARCHS@" />
 <!--
     <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true" />
  -->
     <allowed-os-versions>
-        <os-version min="10.6.6" />
+        <os-version min="@MIN_OS@" />
     </allowed-os-versions>
     <choices-outline>
         <line choice="au.com.openwall.BootUnlock" />
@@ -20,5 +23,5 @@
     <choice id="au.com.openwall.BootUnlock" visible="false">
         <pkg-ref id="au.com.openwall.BootUnlock"/>
     </choice>
-    <pkg-ref id="au.com.openwall.BootUnlock">BootUnlock-1.3.4-dist.pkg</pkg-ref>
+    <pkg-ref id="au.com.openwall.BootUnlock">BootUnlock-@VERSION@-dist.pkg</pkg-ref>
 </installer-gui-script>

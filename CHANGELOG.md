@@ -1,19 +1,88 @@
-1.3.4
------
+1.3.3.1
+-------
 
-- The BootUnlock helper is now ad-hoc signed with codesign's default
-  designated requirement (the binary's own cdhash) instead of an explicit
-  "identifier" requirement.  Previously any ad-hoc signed binary claiming the
-  identifier au.com.openwall.BootUnlock satisfied the System keychain ACL and
-  could read the volume passphrases; now only the exact installed build can.
-  Because the hash changes with every build, update.sh must be re-run after
-  upgrading the helper (the installer already does this at the end);
-- update.sh now replaces an existing keychain entry instead of updating it in
-  place with "-U", since changing the trusted application list of an existing
-  item requires an interactive confirmation;
+Numbered below 1.3.4 on purpose: this is 1.3.3 plus the changes below, and it
+should not be confused with a later upstream release.
+
+Upgrading from 1.3.3 or older: the passphrases stored by older versions cannot
+be read by the new keychain helper and are not recognised as BootUnlock's.
+Remove them in Keychain Access (System keychain, kind "Encrypted Volume
+Password") before enrolling the volumes again, or update.sh will report that an
+entry it did not create is in the way.
+
+Who can read the stored passphrases:
+
+- The keychain helper is now ad-hoc signed with codesign's default designated
+  requirement (the binary's own cdhash) instead of an explicit "identifier"
+  requirement.  Previously any ad-hoc signed binary claiming the identifier
+  au.com.openwall.BootUnlock satisfied the System keychain ACL and could read
+  the volume passphrases;
+- Pinning the build is not enough, since a copy of the same build satisfies
+  the ACL wherever it is and whoever runs it.  The helper therefore refuses to
+  work for anybody but root, and it is signed with the hardened runtime, so the
+  root check cannot be bypassed by loading foreign code into a copy of it
+  (DYLD_INSERT_LIBRARIES);
+- The helper now stores the passphrases itself, reading them from standard
+  input, and gives each entry an ACL that trusts only the helper.  update.sh no
+  longer calls "sudo security add-generic-password -w PASSPHRASE", which put
+  the passphrase into the process list and into sudo's log;
+- The helper never prompts.  When an entry does not open for it (after an
+  upgrade, typically) it says so, and helper.sh logs that instead of "could
+  not find the secret";
+- The helper only reads, replaces and removes entries it created.  Entries of
+  the same kind made by macOS (Time Machine) are left alone.
+
+Volume names are untrusted input:
+
+- diskutil.xsl prints the fixed fields first and the name last, and the scripts
+  validate the UUID and the device identifier.  A volume name containing
+  colons or line breaks could make the helper script ask for another volume's
+  passphrase and try it on a device chosen by the name;
+- The dialogs get volume names as arguments of static script files.  They used
+  to be pasted into JavaScript and AppleScript source, where a crafted name was
+  executed as root during the enrolment.
+
+Installation:
+
+- The package declares arm64 (hostArchitectures).  Without that the installer
+  evaluates the package and runs its scripts under Rosetta 2 on Apple Silicon;
+- postinstall starts the enrolment in the background and returns.  It used to
+  wait for it, and the installer terminates scripts after ten minutes;
+- postinstall replaces a loaded launch daemon with "launchctl bootout" and
+  "bootstrap" instead of the legacy "load", and a daemon that cannot be loaded
+  right away no longer aborts the installation;
 - Removed the "preinstall" check for the Xcode command-line tools.  Since
   1.3.3 the helper is compiled when the package is built, so nothing at
-  install time needs them any more (building the package still does).
+  install time needs them any more (building the package still does);
+- Added uninstall.sh, which also removes the stored passphrases.
+
+Unlocking:
+
+- The launch daemon runs the helper script at load (RunAtLoad) as well as on
+  mount, and for two minutes after its first run since startup the script
+  keeps looking for enrolled volumes that are not attached yet.  A locked
+  volume showing up does not cause a mount event;
+- After three failed unlocks in a row a volume is left alone until update.sh
+  is run again (issue #21).  The retry with a hexadecimal passphrase is gone:
+  update.sh only stores passphrases it has verified as typed;
+- update.sh preselects the enrolled volumes, keeps those whose stored
+  passphrase still fits without asking again, and removes the passphrase of a
+  volume that is unselected.  "Skip" skips that volume instead of ending the
+  script, and it ends by saying what is enrolled;
+- The volumes macOS is running from are recognised again.  On macOS 11 and
+  newer the root file system is a snapshot, which the old check never matched,
+  so the system volumes were offered for enrolment;
+- The log is readable by administrators only, is rotated by newsyslog and no
+  longer gets the whole mount table on every mount event.
+
+Build:
+
+- build.sh uses the system's tools by absolute path, stages an explicit list
+  of files instead of packaging whatever lies in files/, takes the helper's
+  architectures and deployment target from ARCHS and MIN_OS, can sign the
+  package (PKG_SIGN_IDENTITY), and prints the hashes of what it built;
+- "make test" runs the scripts against stand-ins for diskutil, the keychain
+  and the dialogs.
 
 1.3.3
 -----

@@ -1,65 +1,101 @@
 #!/bin/bash
+#
+# Runs as root at the end of the installation, after the files are in place.
+#
+# It sets ownership and permissions, sets up the log and its rotation, loads
+# the launch daemon and starts the enrolment (update.sh) in the background.
+# It does not wait for the enrolment: the installer terminates a script that
+# runs longer than ten minutes, and the enrolment waits for the user.
 
 set -eu -o pipefail
 
-# Filename of script.
-NAME="BootUnlock"
+BOOTUNLOCK_DIR=/Library/PrivilegedHelperTools/au.com.openwall.BootUnlock
+LOG_TAG=postinstall
+. "$BOOTUNLOCK_DIR/common.sh"
 
-# Script identifier (same as package identifier).
-IDENTIFIER="au.com.openwall.$NAME"
+umask 022
 
-# The location to copy the contents of files.
-INSTALL_LOCATION="/Library/PrivilegedHelperTools/$IDENTIFIER"
+# The keychain helper is built and ad-hoc signed when the package is built
+# (build/build.sh, build/BootUnlock.c).  Mode 0100: root may execute it, and
+# nobody else can even read it.  That is defence in depth only; the helper
+# refuses to work for anybody but root wherever a copy of it may be.
+chown -R root:wheel "$BOOTUNLOCK_DIR"
+chmod 0755 "$BOOTUNLOCK_DIR" "$BOOTUNLOCK_DIR"/*.sh
+chmod 0644 "$BOOTUNLOCK_DIR/common.sh" "$BOOTUNLOCK_DIR/diskutil.xsl" "$BOOTUNLOCK_DIR"/ui-*
+chmod 0100 "$HELPER"
 
-LAUNCH_DAEMON_PLIST="/Library/LaunchDaemons/$IDENTIFIER.plist"
+prepare_log
+prepare_state
+exec >> "$LOG_FILE" 2>&1
+log "installing"
 
-# The "$NAME" helper is a small native (arm64/x86_64) program built and
-# ad-hoc signed at package build time (see build/build.sh and
-# build/BootUnlock.c) that talks to the keychain directly.  The System
-# keychain ACL set up by update.sh (run at the end of this script) trusts the
-# exact build by its cdhash, which is also why update.sh has to run again on
-# every upgrade.  All that's left to do here is lock down its ownership and
-# permissions.
-chown -h root:wheel "$INSTALL_LOCATION/$NAME"
-chmod 0100 "$INSTALL_LOCATION/$NAME"
+TMP_DIR=$(mktemp -d -t BootUnlock)
+trap 'rm -rf "$TMP_DIR"' EXIT
 
-trap 'RC=$?; trap - EXIT; rm -f $TMPFILE; exit $RC' HUP INT EXIT TERM
-if ! TMPFILE=$(mktemp -t ${0##*/}); then
-	osascript -e 'display alert "BootUnlock" message "Failed to create a temporary file.  The installation cannot continue!" as critical' >/dev/null
-	exit 1
+# Rotate the log: five compressed archives, a new one whenever the log
+# reaches 1024 KB.  N: no process needs a signal, launchd reopens the file on
+# every run of the helper.  J: compress with bzip2.
+if [ -d "${NEWSYSLOG_CONF%/*}" ]; then
+	cat > "$TMP_DIR/newsyslog.conf" << EOF
+# logfilename                 [owner:group]  mode  count  size  when  flags
+$LOG_FILE      root:admin     640   5      1024  *     NJ
+EOF
+	chmod 0644 "$TMP_DIR/newsyslog.conf"
+	mv -f "$TMP_DIR/newsyslog.conf" "$NEWSYSLOG_CONF"
 fi
 
-cat <<-__EOF__ > "$TMPFILE"
+# RunAtLoad starts the helper once at startup, StartOnMount whenever a
+# filesystem is mounted.  A locked volume showing up mounts nothing, so the
+# helper also polls for a while after its first run (BOOT_WINDOW in common.sh).
+cat > "$TMP_DIR/daemon.plist" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-        <key>Label</key>
-        <string>$IDENTIFIER</string>
-        <key>StartOnMount</key>
-        <true/>
-        <key>Program</key>
-        <string>$INSTALL_LOCATION/helper.sh</string>
-        <key>StandardOutPath</key>
-        <string>/var/log/$NAME.log</string>
-        <key>StandardErrorPath</key>
-        <string>/var/log/$NAME.log</string>
-	</dict>
-	</plist>
-__EOF__
+	<key>Label</key>
+	<string>$IDENTIFIER</string>
+	<key>Program</key>
+	<string>$BOOTUNLOCK_DIR/helper.sh</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StartOnMount</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>$LOG_FILE</string>
+	<key>StandardErrorPath</key>
+	<string>$LOG_FILE</string>
+</dict>
+</plist>
+EOF
+chmod 0644 "$TMP_DIR/daemon.plist"
+mv -f "$TMP_DIR/daemon.plist" "$LAUNCH_DAEMON_PLIST"
+chown root:wheel "$LAUNCH_DAEMON_PLIST"
 
-# Pre-create the log file, but if it fails ignore the error
-touch "/var/log/$NAME.log" \
-	&& chown -h root:wheel "/var/log/$NAME.log" \
-	&& chmod -h 0644 "/var/log/$NAME.log" \
-	||:
+# Replace a daemon left over from an earlier installation.  Removing it takes
+# a moment, and loading the new one fails while the old one still exists.
+if launchctl print "system/$IDENTIFIER" > /dev/null 2>&1; then
+	launchctl bootout "system/$IDENTIFIER" || true
+	waited=0
+	while launchctl print "system/$IDENTIFIER" > /dev/null 2>&1 && [ "$waited" -lt 20 ]; do
+		sleep 0.5
+		waited=$((waited + 1))
+	done
+fi
+# Not fatal: launchd loads the daemon at the next startup in any case.
+if launchctl bootstrap system "$LAUNCH_DAEMON_PLIST"; then
+	log "launch daemon loaded"
+else
+	log "WARNING: the launch daemon could not be loaded now; it starts with the next restart"
+fi
 
-chown -h root:wheel "$TMPFILE"
-chmod -h 0644 "$TMPFILE"
-mv -f "$TMPFILE" "$LAUNCH_DAEMON_PLIST"
+# The enrolment shows dialogs, so it needs somebody at the screen.
+CONSOLE_USER=$(stat -f %Su /dev/console 2> /dev/null || echo root)
+if [ "$CONSOLE_USER" = root ] || [ "$CONSOLE_USER" = loginwindow ]; then
+	log "nobody is logged in at the screen; run $BOOTUNLOCK_DIR/update.sh to enrol volumes"
+else
+	log "starting the enrolment in the background"
+	"$BOOTUNLOCK_DIR/update.sh" < /dev/null > /dev/null 2>&1 &
+fi
 
-# Load the new LaunchDaemon.
-/bin/launchctl load "$LAUNCH_DAEMON_PLIST"
-
-# Give the user an opportunity to register the passwords for volumes
-"$INSTALL_LOCATION/update.sh"
+log "installed"
+exit 0

@@ -10,12 +10,16 @@
 \
 \pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\qj\partightenfactor0
 
-\f1\b0 \cf0 It seems that you have successfully installed 
-\f0\b BootUnlock
-\f1\b0  to your system.  Now, to test that it works properly it is recommended to reboot the system and try to log in as your normal user account.  If everything works as expected you will be able to login and see the volumes you selected earlier to be automatically unlocked.\
+\f1\b0 \cf0 BootUnlock is installed.\
 \
-If you decide that BootUnlock is not for you, then you can completely clean it out of your system by removing the 
-\f2 /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock
-\f1  directory and the 
-\f2 \cf2 \CocoaLigature0 /Library/LaunchDaemons/au.com.openwall.BootUnlock.plist
-\f1  file.}
+A window asking which volumes to unlock at startup appears now; it may be behind this one.  Nothing is unlocked automatically until you have enrolled a volume there.  If the window does not appear, or to change your choice later, run:\
+\
+\f2 sudo /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock/update.sh\
+\
+\f1 To test it, restart the Mac and log in: the volumes you selected should be unlocked already.  What BootUnlock did is recorded in
+\f2  /var/log/BootUnlock.log
+\f1 , which administrators can read.\
+\
+To remove BootUnlock completely, including the passphrases it stored in the System keychain, run:\
+\
+\f2 sudo /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock/uninstall.sh}

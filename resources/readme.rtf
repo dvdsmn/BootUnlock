@@ -10,32 +10,31 @@
 \
 \pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\qj\partightenfactor0
 
-\f1\b0 \cf0 The idea behind this package was to leverage the standard system tools to overcome the limitation of macOS.  A quick search on the Internet showed that similar tools were created obviously by developers who are eager to write something up from scratch.  However, good engineering requires critical thinking and if the problem can be addressed using the existing tools, then this is the challenge worth puzzling your head with.\
+\f1\b0 \cf0 BootUnlock unlocks the encrypted APFS volumes you choose when the Mac starts, before anybody logs in.\
 \
-The package installs most of its content to the 
-\f2 /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock
-\f1  directory (a couple of shell scripts, an XSL file, and a copy of the security tool with custom extended attributes), then it drops a plist file into 
-\f2 \cf2 \CocoaLigature0 /Library/LaunchDaemons
-\f1 / to actually start the 
-\f0\b BootUnlock
-\f1\b0  helper script at the startup.\
+\f0\b What is installed\
+\f1\b0 The package puts its files into the
+\f2  /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock
+\f1  directory: a few shell scripts, an XSL file, three small dialog scripts and a keychain helper program.  It adds a launch daemon in
+\f2  /Library/LaunchDaemons
+\f1 , a log rotation rule in
+\f2  /etc/newsyslog.d
+\f1 , and it writes a log to
+\f2  /var/log/BootUnlock.log
+\f1 .\
 \
-The 
-\f0\b BootUnlock
-\f1\b0  helper script scans the system for any encrypted volumes and for each found one queries the System keychain for the corresponding password entry.  If such an entry is found then 
-\f0\b BootUnlock
-\f1\b0  will use the password and will attempt to unlock the corresponding volume.\
+\f0\b How it works\
+\f1\b0 The launch daemon runs the helper script at startup and whenever a volume is mounted.  For every volume you enrolled that is locked, the script takes the passphrase from the System keychain and unlocks the volume.  It leaves all other volumes alone, and it stops trying a volume after three failed attempts until you enrol it again.\
 \
-There are two ways how an end user (you :) ) can add passwords for the encrypted volumes onto the System keychain:\
+\f0\b Enrolling volumes\
+\f1\b0 A window asking which volumes to unlock appears when the installation is finished.  For every volume you select you are asked for its passphrase, which is checked against the volume and then stored in the System keychain.  To change your choice later, and after every upgrade of BootUnlock, run
+\f2  /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock/update.sh
+\f1 .\
 \
-1. Hardcore: when you start you system and login as a user whose home directory is not on the encrypted volume (e.g. the administrative user) you will be prompted by the system to unlock volumes and will be given an option to save the provided passwords to the keychain.  Unfortunately, the system will use that user\'92s keychain to store the password, so in order to allow BootUnlock to use the password you will need to move the corresponding entries from user\'92s keychain to the System keychain (using the Keychain app, for example).\
+\f0\b What you should know\
+\f1\b0 The stored passphrases can only be read through the installed keychain helper, and that program only works for the root user.  Anybody who is root on this Mac, or who can read an unencrypted startup disk, can therefore get them: turn on FileVault for the startup disk, otherwise the encryption of the enrolled volumes protects very little.  Enrolled volumes are unlocked for everybody who uses this Mac, as soon as it has started.\
 \
-2. Easy: to make the enrolment of encrypted volumes into 
-\f0\b BootUnlock
-\f1\b0  easier, 
-\f0\b BootUnlock
-\f1\b0  provides a shell script (installed as 
-\f2 \cf0 \CocoaLigature1 /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock/update.sh
-\f1 ) which does all the heavy lifting for you.  This script will be executed at the end of this package installation routine, but you can always call it manually if your configuration changes.\
-\
-Good luck!}
+\f0\b Removing BootUnlock\
+\f1\b0 Run
+\f2  /Library/PrivilegedHelperTools/au.com.openwall.BootUnlock/uninstall.sh
+\f1 .  It removes everything listed above, including the stored passphrases.}
